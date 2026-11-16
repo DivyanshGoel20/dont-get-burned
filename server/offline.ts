@@ -1,4 +1,4 @@
-// A scripted stand-in for the villagers, used when no ZG_API_KEY is set.
+// A scripted stand-in for the villagers, used when no AGENTROUTER_API_KEY is set.
 // It scores messages with simple word lists so the game is still playable.
 import type { Villager } from "../src/data/cast.js";
 import type { Topic } from "../src/data/topics.js";

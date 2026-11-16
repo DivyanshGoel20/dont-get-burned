@@ -1,6 +1,11 @@
 node_modules
 dist
-.env
-.env.local
 .vercel
 art-src
+
+# Secrets: every env file except the empty example
+.env
+.env.*
+!.env.example
+*.pem
+*.key

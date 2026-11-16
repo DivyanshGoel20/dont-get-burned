@@ -12,7 +12,7 @@ function talkApi(): Plugin {
         }
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(chunk as Buffer);
-        const { BadRequest, handleTalk } = await server.ssrLoadModule("/server/talk.ts");
+        const { BadRequest, handleTalk, publicError } = await server.ssrLoadModule("/server/talk.ts");
         res.setHeader("Content-Type", "application/json");
         try {
           const body = JSON.parse(Buffer.concat(chunks).toString() || "null");
@@ -21,7 +21,7 @@ function talkApi(): Plugin {
           const bad = err instanceof BadRequest || err instanceof SyntaxError;
           if (!bad) console.error(err);
           res.statusCode = bad ? 400 : 502;
-          res.end(JSON.stringify({ error: bad ? "Bad request" : "They didn't hear you over the pigs. Try again." }));
+          res.end(JSON.stringify({ error: bad ? "Bad request" : publicError(err) }));
         }
       });
     },
@@ -29,7 +29,8 @@ function talkApi(): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "ZG_");
+  // Server-only settings. Without a VITE_ prefix these never reach the browser bundle.
+  const env = loadEnv(mode, process.cwd(), "AGENTROUTER_");
   for (const [k, v] of Object.entries(env)) if (v) process.env[k] = v;
   return { plugins: [talkApi()] };
 });

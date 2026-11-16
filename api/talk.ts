@@ -1,5 +1,5 @@
 // Vercel serverless function: POST /api/talk
-import { BadRequest, handleTalk } from "../server/talk.js";
+import { BadRequest, handleTalk, publicError } from "../server/talk.js";
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -8,6 +8,6 @@ export async function POST(request: Request): Promise<Response> {
   } catch (err) {
     if (err instanceof BadRequest) return Response.json({ error: err.message }, { status: 400 });
     console.error(err);
-    return Response.json({ error: "They didn't hear you over the pigs. Try again." }, { status: 502 });
+    return Response.json({ error: publicError(err) }, { status: 502 });
   }
 }

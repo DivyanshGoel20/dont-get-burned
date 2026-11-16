@@ -1,13 +1,11 @@
-// One turn of conversation with a villager, played by a model on the 0G Compute
-// Router (OpenAI-compatible). Falls back to a scripted villager without a key.
+// One turn of conversation with a villager, played by a model on AgentRouter
+// (OpenAI-compatible). Falls back to a scripted villager without a key.
 import { z } from "zod";
 import { byId, type Villager } from "../src/data/cast.js";
 import { topicById, type Topic } from "../src/data/topics.js";
 import { MAX_TURNS, MOODS, clamp, findBanned, type Mood, type TalkReply, type TalkRequest } from "../src/shared.js";
+import { chat, llmConfigured } from "./llm.js";
 import { offlineReply } from "./offline.js";
-
-const BASE_URL = () => (process.env.ZG_BASE_URL || "https://router-api.0g.ai/v1").replace(/\/$/, "");
-const MODEL = () => process.env.ZG_MODEL || "glm-5.2";
 
 export class BadRequest extends Error {}
 
@@ -93,50 +91,18 @@ function extractJson(text: string): unknown {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function callModel(system: string, user: string, jsonMode: boolean): Promise<string> {
-  const res = await fetch(`${BASE_URL()}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ZG_API_KEY}` },
-    body: JSON.stringify({
-      model: MODEL(),
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.9,
-      max_tokens: 1200,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-    }),
-    signal: AbortSignal.timeout(45_000),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw Object.assign(new Error(`0G router returned ${res.status}: ${detail.slice(0, 300)}`), { status: res.status });
-  }
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Empty reply from 0G router");
-  return content;
-}
-
 export async function handleTalk(body: unknown): Promise<TalkReply> {
   const req = parseRequest(body);
   const v = byId(req.villagerId)!;
   const topic = topicById(req.topicId)!;
   const bannedUsed = findBanned(req.message, topic.banned);
 
-  if (!process.env.ZG_API_KEY) return offlineReply(req, v, topic, bannedUsed);
+  if (!llmConfigured()) return offlineReply(req, v, topic, bannedUsed);
 
-  const system = systemPrompt(v);
-  const user = userPrompt(req, topic, v, bannedUsed);
-  let raw: string;
-  try {
-    raw = await callModel(system, user, true);
-  } catch (err) {
-    // Some providers reject response_format; retry once without it.
-    if ((err as { status?: number }).status !== 400) throw err;
-    raw = await callModel(system, user, false);
-  }
+  const raw = await chat([
+    { role: "system", content: systemPrompt(v) },
+    { role: "user", content: userPrompt(req, topic, v, bannedUsed) },
+  ]);
 
   const out = Output.parse(extractJson(raw));
   const mood = (MOODS as string[]).includes(out.mood) ? (out.mood as Mood) : "curious";
@@ -153,4 +119,13 @@ export async function handleTalk(body: unknown): Promise<TalkReply> {
     belief: out.belief.trim().replace(/\.$/, ""),
     bannedUsed,
   };
+}
+
+/** A safe, player-facing message for a failed turn. Never includes provider details. */
+export function publicError(err: unknown): string {
+  const status = (err as { status?: number })?.status;
+  if (status === 401 || status === 403) return "The AI key was rejected. Check AGENTROUTER_API_KEY in .env.local.";
+  if (status === 429) return "Too many requests. Wait a moment and try again.";
+  if (status === 503) return "That AI model is unavailable right now. Try again shortly.";
+  return "They didn't hear you over the pigs. Try again.";
 }
