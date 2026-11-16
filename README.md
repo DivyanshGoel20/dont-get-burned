@@ -15,13 +15,13 @@ OpenAI-compatible provider works by changing the `AGENTROUTER_*` values.
 
 ```bash
 npm install
-cp .env.example .env.local   # paste your key after AGENTROUTER_API_KEY=
+cp .env.example .env   # paste your key after AGENTROUTER_API_KEY=
 npm run dev
 ```
 
 ## Secrets
 
-- The key lives only in `.env.local`, which is git-ignored (every `.env.*` file except `.env.example` is).
+- The key lives only in `.env`, which is git-ignored (every `.env.*` file except `.env.example` is).
 - It is read only on the server (`server/llm.ts`) and never reaches the browser bundle.
 - A pre-commit hook in `.githooks/` refuses to commit env files or anything that looks like an API key.
   It's enabled per clone with:

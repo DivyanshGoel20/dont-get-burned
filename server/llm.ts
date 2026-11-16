@@ -19,7 +19,7 @@ const config = () => ({
   apiKey: process.env.AGENTROUTER_API_KEY?.trim() || "",
   baseUrl: (process.env.AGENTROUTER_BASE_URL?.trim() || "https://agentrouter.org/v1").replace(/\/$/, ""),
   // A comma-separated list: the first is used, the rest are fallbacks when a model is unavailable.
-  models: (process.env.AGENTROUTER_MODEL || "deepseek-v4-flash,glm-5.3")
+  models: (process.env.AGENTROUTER_MODEL || "gpt-5.6-sol,gpt-6.1-sol")
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean),
