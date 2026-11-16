@@ -67,6 +67,12 @@ const state = {
 };
 
 const villager = () => state.lineup[state.round];
+
+/** "The lift" -> "the lift"; keeps names like "Wi-Fi" or "AI" as written. */
+function thingName(title: string) {
+  const first = title.split(" ")[0];
+  return /[A-Z].*[A-Z]/.test(first) ? title : title.charAt(0).toLowerCase() + title.slice(1);
+}
 const topic = () => state.topics[state.round];
 
 // ---------- helpers ----------
@@ -276,12 +282,15 @@ function startRound() {
   const input = $<HTMLTextAreaElement>("input");
   input.value = "";
   input.disabled = false;
-  input.placeholder = `Explain ${t.title.replace(/^The /, "the ")} to ${v.name}…`;
+  input.placeholder = `Explain ${thingName(t.title)} to ${v.name}…`;
   show("game");
   updateWarn();
   setMood(state.suspicion >= 50 ? "suspicious" : "curious");
+  // The villager opens by asking about the word itself, and that line is part of the conversation.
+  const openerText = v.opener.replaceAll("{thing}", thingName(t.title));
+  state.transcript.push({ who: "them", text: openerText });
   const opener = addEntry("them", "", "first");
-  void typeOut(opener, v.opener).then(() => input.focus({ preventScroll: true }));
+  void typeOut(opener, openerText).then(() => input.focus({ preventScroll: true }));
 }
 
 function updateWarn() {
@@ -326,15 +335,22 @@ async function send(e?: Event) {
   input.value = "";
   input.disabled = true;
   updateWarn();
-  addEntry("you", escapeHtml(message));
+  const mine = addEntry("you", escapeHtml(message)).closest(".entry")!;
   const pending = addEntry("them", `<span class="considering">${escapeHtml(villager().name)} considers this</span>`, "pending");
   $("sitterFrame").classList.add("thinking");
 
+  const name = escapeHtml(villager().name);
+  const slow = [
+    setTimeout(() => (pending.innerHTML = `<span class="considering">${name} is thinking hard about this</span>`), 5000),
+    setTimeout(() => (pending.innerHTML = `<span class="considering">${name} is still puzzling it over</span>`), 12000),
+  ];
   let reply: TalkReply;
   try {
     reply = await talk(message);
   } catch (err) {
+    slow.forEach(clearTimeout);
     pending.closest(".entry")!.remove();
+    mine.remove(); // the message is put back in the box, so don't show it twice
     $("sitterFrame").classList.remove("thinking");
     toast(err instanceof Error ? err.message : "Something went wrong.");
     input.value = message;
@@ -345,6 +361,7 @@ async function send(e?: Event) {
     return;
   }
 
+  slow.forEach(clearTimeout);
   $("sitterFrame").classList.remove("thinking");
   pending.closest(".entry")!.classList.remove("pending");
   $("offlinePill").hidden = !reply.offline;

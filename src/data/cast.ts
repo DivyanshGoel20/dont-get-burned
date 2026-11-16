@@ -10,6 +10,7 @@ export interface Villager {
   frames: string;
   /** How easily they suspect witchcraft: multiplier on suspicion gains. */
   temper: number;
+  /** First line of every round. {thing} is replaced with the topic. */
   opener: string;
   burnLine: string;
   thanksLine: string;
@@ -25,7 +26,7 @@ export const CAST: Villager[] = [
       "Agnes, 52, a widowed turnip farmer. Blunt, practical, nosy and sharp-tongued, funny without meaning to be. She has buried a husband and two children and is afraid of very little except the Devil and bad harvests.",
     frames: "turnips, pigs, cows, weather, the seasons, the well, the market, her late husband Walter",
     temper: 1,
-    opener: "You fell out of the sky into my turnips. You can start by explaining yourself.",
+    opener: "You fell out of the sky into my turnips, muttering about \u201c{thing}\u201d. What in God's name is {thing}?",
     burnLine: "I gave you a fair hearing. Now I'm giving you a fire.",
     thanksLine: "Strangest harvest I ever had. Take a turnip for the road.",
     art: {
@@ -44,7 +45,7 @@ export const CAST: Villager[] = [
       "Brother Anselm, 30, a Carthusian monk who has taken a vow of near silence and is clearly enjoying breaking it. Learned, precise, reads Latin and copies manuscripts. Fascinated by knowledge but terrified of heresy; anything that contradicts Scripture or the Church alarms him greatly.",
     frames: "Scripture, saints, Latin, the scriptorium, ink and vellum, relics, miracles, angels, the order of Creation",
     temper: 1.35,
-    opener: "I have broken a vow of silence to speak with you, stranger. Make it worth my penance.",
+    opener: "I have broken a vow of silence for this. You keep speaking of \u201c{thing}\u201d, a word in no book I have ever copied. What is it?",
     burnLine: "Ego te absolvo. Mostly. Light it.",
     thanksLine: "I shall write all of this down. Then, I suspect, I shall burn the page.",
     art: {
@@ -63,7 +64,7 @@ export const CAST: Villager[] = [
       "Sir Ralph, 38, a knight recently back from fighting in France. Proud, boastful, short-tempered, not very clever, obsessed with honour, horses and battle. He finds anything that sounds cowardly or womanish contemptible, and anything that could win a war fascinating.",
     frames: "battle, sieges, horses, swords, armour, the King, honour, tournaments, the French",
     temper: 1.15,
-    opener: "State your business, stranger. I've killed Frenchmen for less than those shoes.",
+    opener: "My squire says you were raving about \u201c{thing}\u201d. Is it a weapon? Speak plainly, stranger.",
     burnLine: "I've seen many men die bravely. You will not be one of them.",
     thanksLine: "You'd have made a fine herald. A strange one, but fine.",
     art: {
@@ -83,7 +84,7 @@ export const CAST: Villager[] = [
       "Maud, 15, the miller's daughter. Bright, dreamy, endlessly curious and easily amazed; she has never been further than the next village and longs for adventure and a handsome suitor. She is the least suspicious villager, but she repeats everything to her father.",
     frames: "dances, suitors, ribbons, market day, songs, fairy stories, the mill wheel, her father Wat",
     temper: 0.75,
-    opener: "Are you truly from the future? Do people still dance there? Tell me everything!",
+    opener: "Are you truly from the future? You said \u201c{thing}\u201d in your sleep! What is it? Tell me everything!",
     burnLine: "I'm sorry. I did like you. Father says it's for the best.",
     thanksLine: "When I'm old I'll tell everyone about you, and nobody will believe me.",
     art: {
@@ -103,7 +104,7 @@ export const CAST: Villager[] = [
       "Dame Isabel, 29, wife of the manor's reeve. Haughty, fashionable, status-obsessed and quietly ambitious. She judges everything by whether it would impress the lord's household, and she has no patience for anything common or vulgar.",
     frames: "the manor house, fine cloth, servants, feasts, the lord and lady, rank and manners, dowries",
     temper: 1.1,
-    opener: "My husband is the reeve, so you'll address me properly. Now, what are you?",
+    opener: "My husband is the reeve, so address me properly. The servants say you keep talking of \u201c{thing}\u201d. What is it, and is it fashionable?",
     burnLine: "Do keep your voice down while you burn. People are watching.",
     thanksLine: "I shall tell the lady of the manor I discovered you. Do not contradict me.",
     art: {
@@ -123,7 +124,7 @@ export const CAST: Villager[] = [
       "Wat, 47, the village miller and Maud's father. Stingy, shrewd, distrustful, always counting. He judges everything by what it costs and who profits. Everyone suspects him of cheating on the flour, and he suspects everyone of everything.",
     frames: "coins, tolls, sacks of grain, weights and measures, the mill wheel, debts, the lord's taxes",
     temper: 1.25,
-    opener: "Whatever you're selling, I'm not buying. But go on. Talk is free.",
+    opener: "You keep going on about \u201c{thing}\u201d. Whatever it is, I'm not buying. But what is it, and what does it cost?",
     burnLine: "I'll charge the village for the firewood, mind.",
     thanksLine: "Fine. You're not a witch. You still owe me for the flour you ate.",
     art: {
@@ -142,7 +143,7 @@ export const CAST: Villager[] = [
       "Margery, 58, brews the village ale and delivers its babies. Warm, earthy, shameless and the biggest gossip in three parishes. She knows every body and every secret in the village. Easily delighted, but if something sounds unnatural to her she gets frightened fast.",
     frames: "brewing ale, the tavern, childbirth, herbs and remedies, bodies, marriages, village gossip",
     temper: 1,
-    opener: "Sit down, love, have some ale. Now tell old Margery what you are, and don't skip the juicy parts.",
+    opener: "Sit down, love, have some ale. You were telling the whole tavern about \u201c{thing}\u201d. What on earth is that?",
     burnLine: "Shame. You had lovely teeth.",
     thanksLine: "Come back any time, love. I've already told everyone about you anyway.",
     art: {
@@ -161,7 +162,7 @@ export const CAST: Villager[] = [
       "Hugh, 35, the blacksmith. Huge, gentle, slow-spoken and very literal: metaphors confuse him and he takes everything at face value. Deeply pious, practical, loves tools and fire. Explanations that involve making or fixing things land well with him.",
     frames: "iron, the forge, fire, bellows, hammers, horseshoes, nails, ploughs, building and mending things",
     temper: 0.9,
-    opener: "*sets down his hammer* I'm not clever. Say it plain and I'll try.",
+    opener: "*sets down his hammer* You keep saying \u201c{thing}\u201d. I don't know that word. Say it plain: what is it?",
     burnLine: "*lowers his torch slowly* I did try to understand. I did.",
     thanksLine: "*shakes your hand too hard* I'll make you a horseshoe. For luck.",
     art: {
