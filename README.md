@@ -7,15 +7,15 @@ Get the villager's understanding to 85% within five attempts. The whole village 
 suspicion meter: let it reach 100 and everyone you've met, and everyone you haven't, gathers
 with torches. Survive all three rounds and they gather to thank you instead.
 
-The villagers are played by an LLM through [AgentRouter](https://agentrouter.org) (OpenAI-compatible
-`/v1/chat/completions`), which writes their replies and judges understanding and suspicion. Any
-OpenAI-compatible provider works by changing the `AGENTROUTER_*` values.
+The villagers are played by Google's Gemini (free tier) through its OpenAI-compatible endpoint. The model
+writes their replies and judges understanding and suspicion. Any OpenAI-compatible provider works by
+changing the `LLM_*` values in `.env`.
 
 ## Run it
 
 ```bash
 npm install
-cp .env.example .env   # paste your key after AGENTROUTER_API_KEY=
+cp .env.example .env   # paste a free key from https://aistudio.google.com/apikey after LLM_API_KEY=
 npm run dev
 ```
 
@@ -43,5 +43,5 @@ credits are in the game under "The paintings" and in `src/data/`.
 
 - `src/data/` holds the cast (8 villagers with personas), the topics (75 across three tiers) and the scene credits.
 - `src/main.ts` runs the game flow. `fx.ts` draws the embers and `audio.ts` generates the sound.
-- `server/talk.ts` holds the villager prompt. `server/llm.ts` is the AgentRouter client, with model fallback. `server/offline.ts` is the no-key fallback.
+- `server/talk.ts` holds the villager prompt. `server/llm.ts` is the OpenAI-compatible client (Gemini by default), with model fallback. `server/offline.ts` is the no-key fallback.
 - `api/talk.ts` is the Vercel function. During `npm run dev` a Vite middleware serves the same handler.

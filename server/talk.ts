@@ -1,5 +1,5 @@
-// One turn of conversation with a villager, played by a model on AgentRouter
-// (OpenAI-compatible). Falls back to a scripted villager without a key.
+// One turn of conversation with a villager, played by an LLM through an
+// OpenAI-compatible API (Gemini by default). Falls back to a scripted villager without a key.
 import { z } from "zod";
 import { byId, type Villager } from "../src/data/cast.js";
 import { topicById, type Topic } from "../src/data/topics.js";
@@ -124,8 +124,8 @@ export async function handleTalk(body: unknown): Promise<TalkReply> {
 /** A safe, player-facing message for a failed turn. Never includes provider details. */
 export function publicError(err: unknown): string {
   const status = (err as { status?: number })?.status;
-  if (status === 401 || status === 403) return "The AI provider rejected the request. Check AGENTROUTER_API_KEY in .env, and the server log for details.";
-  if (status === 429) return "Too many requests. Wait a moment and try again.";
+  if (status === 401 || status === 403) return "The AI provider rejected the request. Check LLM_API_KEY in .env, and the server log for details.";
+  if (status === 429) return "The free AI quota is used up for now. Wait a minute and try again.";
   if (status === 503) return "That AI model is unavailable right now. Try again shortly.";
   return "They didn't hear you over the pigs. Try again.";
 }

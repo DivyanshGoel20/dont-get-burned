@@ -30,7 +30,7 @@ function talkApi(): Plugin {
 
 export default defineConfig(({ mode }) => {
   // Server-only settings. Without a VITE_ prefix these never reach the browser bundle.
-  const env = loadEnv(mode, process.cwd(), "AGENTROUTER_");
+  const env = loadEnv(mode, process.cwd(), "LLM_");
   for (const [k, v] of Object.entries(env)) if (v) process.env[k] = v;
   return { plugins: [talkApi()] };
 });

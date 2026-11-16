@@ -1,6 +1,6 @@
-// Calls an OpenAI-compatible chat completions API. Configured for AgentRouter
-// (https://agentrouter.org) by default; any compatible provider works by
-// changing the three AGENTROUTER_* variables in .env.local.
+// Calls an OpenAI-compatible chat completions API. Configured for Google's
+// Gemini API (free tier, OpenAI-compatible endpoint) by default; any compatible
+// provider works by changing the LLM_* variables in .env.
 //
 // The API key is read only here, on the server. It is never sent to the browser.
 
@@ -16,19 +16,21 @@ export class LlmError extends Error {
 }
 
 const config = () => ({
-  apiKey: process.env.AGENTROUTER_API_KEY?.trim() || "",
-  baseUrl: (process.env.AGENTROUTER_BASE_URL?.trim() || "https://agentrouter.org/v1").replace(/\/$/, ""),
+  apiKey: process.env.LLM_API_KEY?.trim() || "",
+  baseUrl: (process.env.LLM_BASE_URL?.trim() || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, ""),
   // A comma-separated list: the first is used, the rest are fallbacks when a model is unavailable.
-  models: (process.env.AGENTROUTER_MODEL || "gpt-5.6-sol,gpt-6.1-sol")
+  models: (process.env.LLM_MODEL || "gemini-flash-latest,gemini-flash-lite-latest")
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean),
+  // Optional: "low" keeps thinking models quick. Leave empty for providers that don't support it.
+  reasoningEffort: process.env.LLM_REASONING_EFFORT?.trim() || "",
 });
 
 export const llmConfigured = () => Boolean(config().apiKey);
 
-async function request(model: string, messages: ChatMessage[], jsonMode: boolean): Promise<string> {
-  const { apiKey, baseUrl } = config();
+async function request(model: string, messages: ChatMessage[], extras: boolean): Promise<string> {
+  const { apiKey, baseUrl, reasoningEffort } = config();
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -37,7 +39,8 @@ async function request(model: string, messages: ChatMessage[], jsonMode: boolean
       messages,
       temperature: 0.9,
       max_tokens: 2000,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      ...(extras ? { response_format: { type: "json_object" } } : {}),
+      ...(extras && reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
     }),
     signal: AbortSignal.timeout(60_000),
   });
@@ -52,7 +55,7 @@ async function request(model: string, messages: ChatMessage[], jsonMode: boolean
   return content;
 }
 
-/** Sends one chat request, retrying without JSON mode or on the next model if needed. */
+/** Sends one chat request, retrying without optional extras or on the next model if needed. */
 export async function chat(messages: ChatMessage[]): Promise<string> {
   const { models } = config();
   let lastError: unknown;
@@ -62,7 +65,7 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
     } catch (err) {
       lastError = err;
       const status = err instanceof LlmError ? err.status : undefined;
-      // Some models reject response_format: retry the same model without it.
+      // Some models reject response_format or reasoning_effort: retry the same model without them.
       if (status === 400 || status === 422) {
         try {
           return await request(model, messages, false);
@@ -70,8 +73,8 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
           lastError = retryErr;
         }
       }
-      // Bad key or no credit: another model won't help.
-      if (status === 401 || status === 403) break;
+      // Bad key or rate limit: another model won't help.
+      if (status === 401 || status === 403 || status === 429) break;
     }
   }
   throw lastError;
