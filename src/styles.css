@@ -129,10 +129,12 @@ button { font: inherit; color: inherit; }
 /* ---------- screens ---------- */
 .screen {
   position: fixed; inset: 0; z-index: 10;
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
   padding: 100px max(24px, 8vw) 60px;
   overflow-y: auto;
 }
+.screen > :first-child { margin-top: auto; }
+.screen > :last-child { margin-bottom: auto; }
 .screen > * { animation: rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen > :nth-child(2) { animation-delay: 0.08s; }
 .screen > :nth-child(3) { animation-delay: 0.18s; }
@@ -310,7 +312,7 @@ button { font: inherit; color: inherit; }
 .card.close .u-fill { box-shadow: 0 0 12px rgba(120, 170, 70, 0.7); }
 
 .stamp {
-  position: absolute; right: 18px; top: 46%;
+  position: absolute; right: 22px; top: 40px;
   font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 6px 16px; border: 3px solid currentColor; border-radius: 8px; transform: rotate(-12deg);
   animation: stamp 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
@@ -388,7 +390,10 @@ button { font: inherit; color: inherit; }
 }
 .last-words .who { display: block; font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: #8b2c22; margin-bottom: 8px; }
 .last-words .act { font-style: italic; color: #8a5d3a; }
-.book { margin-top: 30px; max-width: 34em; }
+.book {
+  margin-top: 22px; max-width: 34em; padding: 18px 22px; border-radius: var(--radius);
+  background: rgba(18, 13, 10, 0.45); border: 1px solid var(--line); backdrop-filter: blur(12px);
+}
 .book h3 { margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
 .book ol { margin: 0; padding-left: 1.4em; font-family: var(--serif); font-size: 19px; line-height: 1.55; color: rgba(244, 234, 214, 0.9); }
 .book li::marker { color: var(--gold); font-family: var(--display); }
@@ -398,12 +403,13 @@ body[data-ending="dawn"] .ending .title { color: #2a1a10; text-shadow: none; }
 body[data-ending="dawn"] .ending .title em { background: linear-gradient(180deg, #c0501e, #8a2a10); -webkit-background-clip: text; background-clip: text; filter: none; }
 body[data-ending="dawn"] .book h3 { color: #6a3a18; }
 body[data-ending="dawn"] .book ol { color: #2a1a10; }
+body[data-ending="dawn"] .book { background: rgba(255, 244, 222, 0.72); border-color: rgba(120, 80, 40, 0.2); }
 body[data-ending="dawn"] .brand { color: #2a1a10; }
 body[data-ending="dawn"] .vignette { opacity: 0.35; }
 
 /* ---------- misc ---------- */
 .offline-pill {
-  position: fixed; left: 50%; bottom: 14px; z-index: 30; transform: translateX(-50%);
+  position: fixed; left: 50%; top: 22px; z-index: 30; transform: translateX(-50%);
   font-size: 12px; padding: 6px 12px; border-radius: 99px;
   background: rgba(18, 13, 10, 0.75); border: 1px solid rgba(255, 180, 120, 0.35); color: #ffc9a0;
   backdrop-filter: blur(8px);
@@ -425,6 +431,12 @@ body.shake .stage { animation: shake 0.6s; }
   80% { transform: translateX(3px); }
 }
 
+.screen::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, rgba(10, 7, 6, 0.55), rgba(10, 7, 6, 0.15) 55%, transparent);
+}
+body[data-ending="dawn"] .screen::before { background: linear-gradient(90deg, rgba(255, 236, 200, 0.45), transparent 60%); }
+
 /* ---------- small screens ---------- */
 @media (max-width: 860px) {
   .stage {
@@ -445,6 +457,9 @@ body.shake .stage { animation: shake 0.6s; }
   .line.agnes .bubble { font-size: 17px; }
   .screen { padding: 90px 20px 40px; }
   .rules li + li::before { display: none; }
+  .offline-pill { top: auto; bottom: 8px; font-size: 11px; padding: 4px 10px; }
+  .composer:not(.done) { padding-bottom: 22px; }
+  .composer.done { padding-bottom: 26px; }
 }
 @media (max-width: 860px) and (max-height: 700px) {
   .card-hint { display: none; }

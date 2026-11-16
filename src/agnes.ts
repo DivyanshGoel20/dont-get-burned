@@ -62,10 +62,6 @@ const FACES: Record<Mood, Face> = {
 const SVG = /* svg */ `
 <svg viewBox="0 0 400 480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agnes, a medieval turnip farmer">
   <defs>
-    <radialGradient id="ag-light" cx="70%" cy="30%" r="80%">
-      <stop offset="0" stop-color="#ffd9a0" stop-opacity=".55"/>
-      <stop offset=".6" stop-color="#ffb070" stop-opacity="0"/>
-    </radialGradient>
     <linearGradient id="ag-skin" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#f1c39a"/>
       <stop offset="1" stop-color="#cf9470"/>
@@ -148,7 +144,6 @@ const SVG = /* svg */ `
     <path d="M326 248 Q314 222 328 196 Q334 214 340 210 Q342 232 332 250 Z" fill="#ffe08a"/>
   </g>
 
-  <rect width="400" height="480" fill="url(#ag-light)" pointer-events="none"/>
 </svg>`;
 
 export class Agnes {

@@ -362,7 +362,7 @@ function survive() {
   const won = state.results.filter((r) => r.won).length;
   const line =
     won >= 6
-      ? "*hands you a turnip* You're the strangest man God ever dropped in a field, but I believe you. Mostly."
+      ? "*hands you a turnip* You're the strangest soul God ever dropped in a field, but I believe you. Mostly."
       : won >= 3
         ? "*squints at the sunrise* I still think you're half mad. But mad isn't witchcraft. Off you go."
         : "*keeps her hoe raised* I didn't understand a word, but you're too boring to be a witch. Leave.";
