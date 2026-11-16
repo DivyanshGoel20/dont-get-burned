@@ -3,107 +3,139 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#120d0a" />
+    <meta name="theme-color" content="#0d0a07" />
     <title>Don't Get Burned</title>
-    <meta name="description" content="It's 1350. Explain modern things to a medieval peasant before she decides you're a witch." />
+    <meta name="description" content="England, 1350. Explain the modern world to three medieval villagers before they decide you're a witch." />
     <meta property="og:title" content="Don't Get Burned" />
-    <meta property="og:description" content="It's 1350. Explain modern things to a medieval peasant before she decides you're a witch." />
+    <meta property="og:description" content="England, 1350. Explain the modern world to three medieval villagers before they decide you're a witch." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="/art/harvesters.webp" />
   </head>
-  <body>
-    <canvas id="sky" aria-hidden="true"></canvas>
-    <div class="vignette" aria-hidden="true"></div>
-    <div class="grain" aria-hidden="true"></div>
+  <body data-screen="title">
+    <div class="backdrop" aria-hidden="true"><div class="layer a"></div><div class="layer b"></div></div>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="paper" aria-hidden="true"></div>
 
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="Don't Get Burned, restart">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1.5 3.4 5 5.3 5 10a5 5 0 0 1-10 0c0-2.3 1-3.8 2.3-5 .2 1.6 1 2.7 2.2 3.2C11 7.6 11 5 12 2Z" fill="currentColor"/></svg>
-        <span>Don't Get Burned</span>
-      </a>
-      <div class="suspicion" id="suspicionMeter" hidden>
-        <span class="label">Suspicion</span>
-        <div class="track"><div class="fill" id="suspicionFill"></div></div>
-        <span class="value" id="suspicionValue">0</span>
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Don't Get Burned, start over">Don't Get Burned</a>
+      <ol class="progress" id="progress" aria-label="Rounds"></ol>
+      <div class="masthead-end">
+        <button class="text-btn" id="creditsBtn" type="button">The paintings</button>
+        <button class="icon-btn" id="muteBtn" type="button" aria-label="Turn sound off">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>
+        </button>
       </div>
-      <button class="icon-btn" id="muteBtn" aria-label="Sound off" title="Sound">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="on" d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="off" d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>
-      </button>
     </header>
 
     <!-- Title -->
-    <section class="screen title-screen" id="titleScreen">
-      <p class="eyebrow">England · The Year of Our Lord 1350</p>
-      <h1 class="title">Don't Get<br /><em>Burned</em></h1>
-      <p class="lede">You've fallen out of the future and into a turnip field. A farmer named Agnes is staring at you. Explain the modern world to her, one thing at a time. Keep her curious. Don't let her get scared.</p>
-      <button class="btn primary" id="startBtn">Begin <span aria-hidden="true">→</span></button>
-      <ul class="rules">
-        <li><b>8</b> modern things to explain</li>
-        <li><b>5</b> tries for each</li>
-        <li><b>Witch-words</b> raise her suspicion</li>
-      </ul>
+    <section class="screen title" id="titleScreen">
+      <div class="title-copy">
+        <p class="kicker">Little Hambury, England · Anno Domini 1350</p>
+        <h1 class="display">Don't Get <em>Burned</em></h1>
+        <p class="lede">You have fallen out of the future and into a medieval village. Three of its people will each ask you to explain one thing from your world. Make them understand. Keep them calm. If the village decides you are a witch, it will not end well.</p>
+        <div class="cta-row">
+          <button class="btn" id="startBtn" type="button">Enter the village</button>
+          <p class="fine">3 villagers · 5 attempts each · 75 impossible things</p>
+        </div>
+      </div>
+      <figure class="title-cast" aria-label="The villagers">
+        <div class="cast-grid" id="castGrid"></div>
+        <figcaption>The people of Little Hambury, as painted by Bruegel, Memling, van der Weyden, Christus, Antonello, Bouts and van der Goes.</figcaption>
+      </figure>
+    </section>
+
+    <!-- Round intro -->
+    <section class="screen intro" id="intro" hidden>
+      <p class="kicker" id="introKicker"></p>
+      <div class="intro-body">
+        <div class="frame intro-frame"><img id="introImg" alt="" /></div>
+        <div class="intro-copy">
+          <h2 class="display sm" id="introName"></h2>
+          <p class="intro-role" id="introRole"></p>
+          <p class="intro-ask"><span>Wants to know about</span><b id="introTopic"></b></p>
+          <p class="intro-hint" id="introHint"></p>
+          <button class="btn" id="introBtn" type="button">Begin</button>
+        </div>
+      </div>
     </section>
 
     <!-- Game -->
-    <main class="stage" id="stage" hidden>
-      <section class="portrait-col">
-        <div class="portrait" id="portrait"></div>
-        <div class="nameplate">
-          <span class="name">Agnes</span>
-          <span class="role">turnip farmer · widow · deeply suspicious</span>
-          <span class="mood" id="moodLabel">curious</span>
+    <main class="screen game" id="game" hidden>
+      <section class="sitter">
+        <div class="meter" id="meter" data-level="calm">
+          <div class="meter-head">
+            <span class="label">The village's suspicion</span>
+            <span class="meter-value"><b id="susValue">0</b><small>/100</small></span>
+          </div>
+          <div class="meter-track"><div class="meter-fill" id="susFill"></div><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i></div>
+          <div class="meter-scale"><span>Calm</span><span>Uneasy</span><span>Whispering</span><span>Torches</span></div>
+        </div>
+        <div class="frame sitter-frame" id="sitterFrame">
+          <img id="sitterImg" alt="" />
+          <div class="torchlight" aria-hidden="true"></div>
+        </div>
+        <div class="plaque">
+          <p class="plaque-name"><span id="sitterName"></span> <span class="plaque-role" id="sitterRole"></span></p>
+          <p class="plaque-mood" id="sitterMood"></p>
         </div>
       </section>
 
-      <section class="panel" aria-live="polite">
-        <article class="card" id="card">
-          <div class="card-head">
-            <span class="card-no" id="cardNo">I of VIII</span>
-            <span class="candles" id="candles" aria-label="Tries left"></span>
+      <section class="folio" aria-live="polite">
+        <header class="brief">
+          <p class="kicker" id="briefKicker"></p>
+          <h2 class="brief-title" id="briefTitle"></h2>
+          <p class="brief-hint" id="briefHint"></p>
+          <dl class="brief-meta">
+            <div class="forbid"><dt>Do not say</dt><dd id="forbidden"></dd></div>
+            <div><dt>Attempts</dt><dd class="attempts" id="attempts"></dd></div>
+          </dl>
+          <div class="understand">
+            <div class="understand-head"><span>Understanding</span><b id="uValue">0%</b></div>
+            <div class="understand-track"><div class="understand-fill" id="uFill"></div><i class="goal" title="Convinced at 85%"></i></div>
           </div>
-          <h2 class="card-title" id="cardTitle">Smartphone</h2>
-          <p class="card-hint" id="cardHint"></p>
-          <div class="banned">
-            <span class="banned-label">Witch-words</span>
-            <div class="seals" id="seals"></div>
-          </div>
-          <div class="understanding">
-            <div class="u-head"><span>Agnes understands</span><b id="uValue">0%</b></div>
-            <div class="u-track"><div class="u-fill" id="uFill"></div><i class="u-goal" aria-hidden="true"></i></div>
-          </div>
-          <div class="stamp" id="stamp" hidden></div>
-        </article>
+        </header>
 
-        <div class="log" id="log"></div>
+        <div class="exchange" id="exchange"></div>
 
-        <form class="composer" id="composer" autocomplete="off">
-          <div class="warn" id="warn" hidden></div>
-          <div class="input-row">
-            <textarea id="input" rows="2" maxlength="400" placeholder="Explain it to her…" aria-label="Your explanation"></textarea>
-            <button class="send" id="sendBtn" type="submit" aria-label="Say it">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
-            </button>
+        <form class="reply" id="reply" autocomplete="off">
+          <p class="warn" id="warn" hidden></p>
+          <div class="reply-row">
+            <textarea id="input" rows="2" maxlength="400" aria-label="Your explanation"></textarea>
+            <button class="btn sm" id="sendBtn" type="submit">Speak</button>
           </div>
-          <button class="btn primary next" id="nextBtn" type="button" hidden>Next thing <span aria-hidden="true">→</span></button>
+          <p class="fine reply-help">Enter to speak · Shift+Enter for a new line</p>
         </form>
+        <div class="after" id="after" hidden>
+          <button class="btn" id="nextBtn" type="button"></button>
+        </div>
       </section>
     </main>
 
-    <!-- Ending -->
-    <section class="screen ending" id="ending" hidden>
-      <p class="eyebrow" id="endEyebrow"></p>
-      <h1 class="title" id="endTitle"></h1>
-      <blockquote class="last-words" id="lastWords"></blockquote>
-      <div class="book">
-        <h3>What Agnes now believes about the future</h3>
-        <ol id="beliefList"></ol>
+    <!-- Finale -->
+    <section class="screen finale" id="finale" hidden>
+      <div class="finale-head">
+        <p class="kicker" id="finKicker"></p>
+        <h1 class="display" id="finTitle"></h1>
+        <p class="lede" id="finLede"></p>
       </div>
-      <div class="end-actions">
-        <button class="btn primary" id="shareBtn">Copy my result</button>
-        <button class="btn ghost" id="againBtn">Try again</button>
+      <div class="assembly" id="assembly"></div>
+      <div class="finale-foot">
+        <div class="beliefs" id="beliefs"></div>
+        <div class="cta-row">
+          <button class="btn" id="againBtn" type="button">Play again</button>
+          <button class="btn ghost" id="shareBtn" type="button">Copy result</button>
+        </div>
       </div>
     </section>
 
-    <div class="offline-pill" id="offlinePill" hidden title="Add ANTHROPIC_API_KEY to .env.local for the real Agnes">Offline Agnes · no API key</div>
+    <dialog class="credits" id="credits">
+      <form method="dialog"><button class="icon-btn close" aria-label="Close">×</button></form>
+      <h3>The paintings</h3>
+      <p>Every face and scene in this game is a real artwork in the public domain, via Wikimedia Commons.</p>
+      <ul id="creditList"></ul>
+    </dialog>
+
+    <p class="status-pill" id="offlinePill" hidden>Offline villagers · add ZG_API_KEY for the real ones</p>
     <div class="toast" id="toast" role="status"></div>
 
     <script type="module" src="/src/main.ts"></script>

@@ -1,118 +1,136 @@
-import "@fontsource/im-fell-english/400.css";
-import "@fontsource/im-fell-english/400-italic.css";
-import "@fontsource-variable/fraunces";
+import "@fontsource/cormorant-garamond/400.css";
+import "@fontsource/cormorant-garamond/500.css";
+import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/cormorant-garamond/400-italic.css";
+import "@fontsource/cormorant-garamond/500-italic.css";
+import "@fontsource/eb-garamond/400.css";
+import "@fontsource/eb-garamond/400-italic.css";
 import "@fontsource-variable/inter";
 import "./styles.css";
 
-import { Agnes } from "./agnes";
 import { Sound } from "./audio";
-import { Scene } from "./scene";
+import { CAST, type Villager } from "./data/cast";
+import { ROUND_SCENES, SCENES, type Scene } from "./data/scenes";
+import { TOPICS, type Topic } from "./data/topics";
+import { Embers } from "./fx";
 import {
-  CARDS,
+  FAIL_PENALTY,
   MAX_TURNS,
+  ROUNDS,
   WIN_UNDERSTANDING,
   findBanned,
-  type AgnesReply,
-  type AgnesRequest,
   type Mood,
+  type TalkReply,
+  type TalkRequest,
   type TurnLine,
 } from "./shared";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const ROMAN = ["I", "II", "III", "IV", "V"];
+const ORDINAL = ["first", "second", "third"];
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const art = (file: string) => `/art/${file}.webp`;
 
-const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
-const MOOD_LABEL: Record<Mood, string> = {
-  curious: "curious",
-  confused: "baffled",
-  amazed: "astonished",
-  delighted: "delighted",
-  suspicious: "suspicious",
-  afraid: "frightened",
-  furious: "calling for torches",
+const MOOD_TEXT: Record<Mood, (n: string) => string> = {
+  curious: (n) => `${n} is listening closely.`,
+  confused: (n) => `${n} is baffled.`,
+  amazed: (n) => `${n} is astonished.`,
+  delighted: (n) => `${n} is delighted.`,
+  suspicious: (n) => `${n} is growing suspicious.`,
+  afraid: (n) => `${n} is frightened of you.`,
+  furious: (n) => `${n} is calling for torches.`,
 };
 
-const OPENERS = [
-  "*grips her hoe* You fell out of the sky into my turnips. Start talking, stranger.",
-  "Right. Next strange thing. Go on, I've got pigs to feed.",
-  "*sighs* What else do they have in your future, then?",
-  "Another one? Saints preserve us. Go on.",
-  "*sits on an upturned bucket* I'm listening. Carefully.",
-  "Margery won't believe a word of this. Next.",
-  "*narrows her eyes* Careful now. I've been counting your odd words.",
-  "Last one, is it? Make it a good one.",
-];
-
-const scene = new Scene($<HTMLCanvasElement>("sky"));
 const sound = new Sound();
-const agnes = new Agnes($("portrait"));
+const embers = new Embers($<HTMLCanvasElement>("fx"));
 
-interface CardResult {
-  title: string;
+interface RoundResult {
+  villager: Villager;
+  topic: Topic;
   won: boolean;
   belief: string;
 }
 
 const state = {
-  cardIndex: 0,
+  round: 0,
+  lineup: [] as Villager[],
+  topics: [] as Topic[],
   suspicion: 0,
   understanding: 0,
   turnsUsed: 0,
   transcript: [] as TurnLine[],
   belief: "",
-  results: [] as CardResult[],
+  results: [] as RoundResult[],
   busy: false,
   over: false,
 };
 
-// ---------- small helpers ----------
+const villager = () => state.lineup[state.round];
+const topic = () => state.topics[state.round];
 
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// ---------- helpers ----------
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
+/** Escapes text and turns *stage directions* into italic spans. */
+function speech(text: string) {
+  return escapeHtml(text).replace(/\*([^*]+)\*/g, '<span class="act">$1</span>');
+}
 
 function toast(msg: string) {
   const el = $("toast");
   el.textContent = msg;
   el.classList.add("show");
-  setTimeout(() => el.classList.remove("show"), 2600);
+  setTimeout(() => el.classList.remove("show"), 2800);
 }
 
-/** Turns *stage directions* into styled spans; escapes everything else. */
-function renderSpeech(text: string): string {
-  const esc = text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-  return esc.replace(/\*([^*]+)\*/g, '<span class="act">$1</span>');
+let backdropFlip = false;
+function setBackdrop(scene: Scene, mode = "") {
+  const layers = document.querySelectorAll<HTMLElement>(".backdrop .layer");
+  const next = layers[backdropFlip ? 0 : 1];
+  const prev = layers[backdropFlip ? 1 : 0];
+  backdropFlip = !backdropFlip;
+  next.style.backgroundImage = `url(${art(scene.file)})`;
+  next.classList.add("on");
+  prev.classList.remove("on");
+  document.querySelector<HTMLElement>(".backdrop")!.dataset.mode = mode;
 }
 
-async function typeInto(el: HTMLElement, text: string) {
-  if (reduceMotion) {
-    el.innerHTML = renderSpeech(text);
-    return;
+type ScreenName = "title" | "intro" | "game" | "finale";
+function show(screen: ScreenName) {
+  const ids: Record<ScreenName, string> = { title: "titleScreen", intro: "intro", game: "game", finale: "finale" };
+  for (const key of Object.keys(ids) as ScreenName[]) {
+    const el = $(ids[key]);
+    if (key === screen) {
+      el.hidden = false;
+      el.classList.remove("enter");
+      void el.offsetWidth;
+      el.classList.add("enter");
+    } else el.hidden = true;
   }
-  el.classList.add("typing");
-  for (let i = 1; i <= text.length; i++) {
-    el.innerHTML = renderSpeech(text.slice(0, i));
-    if (i % 3 === 0) sound.blip();
-    const ch = text[i - 1];
-    await wait(/[.!?]/.test(ch) ? 140 : /[,;]/.test(ch) ? 70 : 16);
-  }
-  el.classList.remove("typing");
+  document.body.dataset.screen = screen;
+  scrollTo({ top: 0 });
 }
 
-function scrollLog() {
-  const log = $("log");
-  log.scrollTo({ top: log.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
-}
-
-function addLine(who: "you" | "agnes", text = ""): HTMLElement {
-  const row = document.createElement("div");
-  row.className = `line ${who}`;
-  const bubble = document.createElement("p");
-  bubble.className = "bubble";
-  if (who === "you") bubble.textContent = text;
-  else bubble.innerHTML = renderSpeech(text);
-  row.append(bubble);
-  $("log").append(row);
-  scrollLog();
-  return bubble;
+function renderProgress() {
+  const onTitle = document.body.dataset.screen === "title";
+  $("progress").innerHTML = Array.from({ length: ROUNDS }, (_, i) => {
+    const r = state.results[i];
+    const cls = r ? (r.won ? "won" : "lost") : i === state.round && !onTitle ? "now" : "";
+    return `<li class="${cls}"><span>${ROMAN[i]}</span></li>`;
+  }).join("");
 }
 
 // ---------- meters ----------
@@ -120,101 +138,181 @@ function addLine(who: "you" | "agnes", text = ""): HTMLElement {
 function setSuspicion(v: number) {
   const prev = state.suspicion;
   state.suspicion = v;
-  $("suspicionFill").style.width = `${v}%`;
-  $("suspicionValue").textContent = String(v);
-  const meter = $("suspicionMeter");
-  meter.dataset.level = v >= 75 ? "high" : v >= 45 ? "mid" : "low";
+  $("susValue").textContent = String(v);
+  $("susFill").style.transform = `scaleX(${v / 100})`;
+  const level = v >= 75 ? "torches" : v >= 50 ? "whispering" : v >= 25 ? "uneasy" : "calm";
+  const meter = $("meter");
+  meter.dataset.level = level;
+  document.body.dataset.heat = level;
   if (v > prev) {
-    meter.classList.remove("bump");
+    meter.classList.remove("rise");
     void meter.offsetWidth;
-    meter.classList.add("bump");
+    meter.classList.add("rise");
   }
-  document.body.style.setProperty("--heat", String(v / 100));
-  scene.setSuspicion(v);
+  embers.intensity = v >= 50 ? (v - 50) / 120 : 0;
   sound.setSuspicion(v);
 }
 
 function setUnderstanding(v: number) {
   state.understanding = v;
-  $("uFill").style.width = `${v}%`;
   $("uValue").textContent = `${v}%`;
-  $("card").classList.toggle("close", v >= 60 && v < WIN_UNDERSTANDING);
+  $("uFill").style.transform = `scaleX(${v / 100})`;
 }
 
-function renderCandles() {
-  const el = $("candles");
-  el.innerHTML = "";
-  for (let i = 0; i < MAX_TURNS; i++) {
-    const c = document.createElement("i");
-    c.className = i < MAX_TURNS - state.turnsUsed ? "lit" : "out";
-    el.append(c);
+function renderAttempts() {
+  const left = MAX_TURNS - state.turnsUsed;
+  $("attempts").innerHTML =
+    Array.from({ length: MAX_TURNS }, (_, i) => `<i class="${i < left ? "left" : "used"}"></i>`).join("") +
+    `<span>${left} left</span>`;
+}
+
+function setMood(mood: Mood) {
+  const frame = $("sitterFrame");
+  frame.dataset.mood = mood;
+  $("sitterMood").textContent = MOOD_TEXT[mood](villager().name);
+  frame.classList.remove("react");
+  void frame.offsetWidth;
+  frame.classList.add("react");
+}
+
+// ---------- exchange ----------
+
+function addEntry(who: "you" | "them", html: string, extra = ""): HTMLElement {
+  const entry = document.createElement("article");
+  entry.className = `entry ${who} ${extra}`.trim();
+  const name = who === "you" ? "You" : villager().name;
+  entry.innerHTML = `<h4>${escapeHtml(name)}</h4><p>${html}</p>`;
+  $("exchange").append(entry);
+  scrollExchange();
+  return entry.querySelector("p")!;
+}
+
+function scrollExchange() {
+  const ex = $("exchange");
+  const behavior = reduceMotion ? "auto" : "smooth";
+  ex.scrollTo({ top: ex.scrollHeight, behavior });
+  // On phones the whole page scrolls instead of the exchange panel.
+  if (matchMedia("(max-width: 900px)").matches) scrollTo({ top: document.body.scrollHeight, behavior });
+}
+
+async function typeOut(el: HTMLElement, text: string) {
+  if (reduceMotion) {
+    el.innerHTML = speech(text);
+    return;
   }
-  el.setAttribute("aria-label", `${MAX_TURNS - state.turnsUsed} tries left`);
+  el.classList.add("typing");
+  for (let i = 1; i <= text.length; i += 2) {
+    el.innerHTML = speech(text.slice(0, i));
+    await wait(/[.!?]/.test(text[i - 1]) ? 90 : 14);
+  }
+  el.innerHTML = speech(text);
+  el.classList.remove("typing");
+  scrollExchange();
 }
 
-// ---------- cards ----------
+function addVerdict(won: boolean, note: string) {
+  const el = document.createElement("div");
+  el.className = `verdict ${won ? "won" : "lost"}`;
+  el.innerHTML = `<span>${won ? "Convinced" : "Unconvinced"}</span><small>${escapeHtml(note)}</small>`;
+  $("exchange").append(el);
+  scrollExchange();
+}
 
-function loadCard(i: number) {
-  const card = CARDS[i];
-  state.cardIndex = i;
+// ---------- rounds ----------
+
+function newRun() {
+  state.lineup = shuffle(CAST).slice(0, ROUNDS);
+  state.topics = ([1, 2, 3] as const).map((tier) => shuffle(TOPICS.filter((t) => t.tier === tier))[0]);
+  state.round = 0;
+  state.results = [];
+  state.over = false;
+  state.busy = false;
+  embers.intensity = 0;
+  setSuspicion(0);
+  delete document.body.dataset.ending;
+  $("offlinePill").hidden = true;
+}
+
+function showIntro() {
+  const v = villager();
+  const t = topic();
+  setBackdrop(ROUND_SCENES[state.round]);
+  $("introKicker").textContent = `Round ${ROMAN[state.round]} of ${ROMAN[ROUNDS - 1]} · The ${ORDINAL[state.round]} villager`;
+  const img = $<HTMLImageElement>("introImg");
+  img.src = art(v.art.file);
+  img.alt = `${v.art.title}, ${v.art.artist}`;
+  $("introName").textContent = v.name;
+  $("introRole").textContent = v.role;
+  $("introTopic").textContent = t.title;
+  $("introHint").textContent = t.hint;
+  $("introBtn").textContent = `Speak to ${v.name}`;
+  show("intro");
+  renderProgress();
+  $("introBtn").focus({ preventScroll: true });
+}
+
+function startRound() {
+  const v = villager();
+  const t = topic();
   state.turnsUsed = 0;
   state.transcript = [];
   state.belief = "";
+
+  const img = $<HTMLImageElement>("sitterImg");
+  img.src = art(v.art.file);
+  img.alt = `${v.name}: ${v.art.title} by ${v.art.artist}, ${v.art.date}`;
+  $("sitterName").textContent = v.name;
+  $("sitterRole").textContent = v.role;
+  $("briefKicker").textContent = `Round ${ROMAN[state.round]} · Explain to ${v.name}`;
+  $("briefTitle").textContent = t.title;
+  $("briefHint").textContent = t.hint;
+  $("forbidden").innerHTML = t.banned.map((w) => `<s data-word="${escapeHtml(w)}">${escapeHtml(w)}</s>`).join("");
   setUnderstanding(0);
-  renderCandles();
+  renderAttempts();
 
-  const el = $("card");
-  el.classList.remove("won", "lost", "deal");
-  void el.offsetWidth;
-  el.classList.add("deal");
-  $("cardNo").textContent = `${ROMAN[i]} of ${ROMAN[CARDS.length - 1]}`;
-  $("cardTitle").textContent = card.title;
-  $("cardHint").textContent = card.hint;
-  $("seals").innerHTML = card.banned.map((w) => `<span class="seal" data-word="${w}">${w}</span>`).join("");
-  $("stamp").hidden = true;
-
-  $("log").innerHTML = "";
-  $("nextBtn").hidden = true;
-  $("composer").classList.remove("done");
+  $("exchange").innerHTML = "";
+  $("after").hidden = true;
+  $("reply").hidden = false;
   const input = $<HTMLTextAreaElement>("input");
   input.value = "";
   input.disabled = false;
+  input.placeholder = `Explain ${t.title.replace(/^The /, "the ")} to ${v.name}…`;
+  show("game");
   updateWarn();
-  agnes.setMood(state.suspicion >= 60 ? "suspicious" : "curious");
-  void typeInto(addLine("agnes"), OPENERS[i] ?? OPENERS[1]).then(() => input.focus({ preventScroll: true }));
+  setMood(state.suspicion >= 50 ? "suspicious" : "curious");
+  const opener = addEntry("them", "", "first");
+  void typeOut(opener, v.opener).then(() => input.focus({ preventScroll: true }));
 }
 
 function updateWarn() {
   const input = $<HTMLTextAreaElement>("input");
-  const card = CARDS[state.cardIndex];
-  const hits = findBanned(input.value, card.banned);
-  document.querySelectorAll<HTMLElement>(".seal").forEach((s) => {
-    s.classList.toggle("hit", hits.includes(s.dataset.word!));
-  });
+  const hits = findBanned(input.value, topic().banned);
+  document
+    .querySelectorAll<HTMLElement>("#forbidden s")
+    .forEach((s) => s.classList.toggle("hit", hits.includes(s.dataset.word!)));
   const warn = $("warn");
   warn.hidden = !hits.length;
-  if (hits.length) warn.innerHTML = `Agnes will hear <b>${hits.join("</b>, <b>")}</b> as witch-talk.`;
+  if (hits.length)
+    warn.innerHTML = `${escapeHtml(villager().name)} will hear <b>${hits.map(escapeHtml).join("</b> and <b>")}</b> as witch-talk.`;
   $<HTMLButtonElement>("sendBtn").disabled = state.busy || !input.value.trim();
 }
 
-// ---------- a turn ----------
-
-async function askAgnes(message: string): Promise<AgnesReply> {
-  const body: AgnesRequest = {
-    cardId: CARDS[state.cardIndex].id,
+async function talk(message: string): Promise<TalkReply> {
+  const body: TalkRequest = {
+    villagerId: villager().id,
+    topicId: topic().id,
     transcript: state.transcript,
     message,
     suspicion: state.suspicion,
     understanding: state.understanding,
-    beliefs: state.results.filter((r) => r.belief).map((r) => r.belief),
     turnsLeft: MAX_TURNS - state.turnsUsed,
   };
-  const res = await fetch("/api/agnes", {
+  const res = await fetch("/api/talk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Agnes didn't answer.");
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "No answer came.");
   return res.json();
 }
 
@@ -228,19 +326,16 @@ async function send(e?: Event) {
   input.value = "";
   input.disabled = true;
   updateWarn();
-  addLine("you", message);
+  addEntry("you", escapeHtml(message));
+  const pending = addEntry("them", `<span class="considering">${escapeHtml(villager().name)} considers this</span>`, "pending");
+  $("sitterFrame").classList.add("thinking");
 
-  const thinking = addLine("agnes", "");
-  thinking.classList.add("thinking");
-  thinking.innerHTML = "<i></i><i></i><i></i>";
-  agnes.thinking(true);
-
-  let reply: AgnesReply;
+  let reply: TalkReply;
   try {
-    reply = await askAgnes(message);
+    reply = await talk(message);
   } catch (err) {
-    thinking.parentElement!.remove();
-    agnes.thinking(false);
+    pending.closest(".entry")!.remove();
+    $("sitterFrame").classList.remove("thinking");
     toast(err instanceof Error ? err.message : "Something went wrong.");
     input.value = message;
     input.disabled = false;
@@ -250,164 +345,163 @@ async function send(e?: Event) {
     return;
   }
 
-  agnes.thinking(false);
+  $("sitterFrame").classList.remove("thinking");
+  pending.closest(".entry")!.classList.remove("pending");
   $("offlinePill").hidden = !reply.offline;
   state.turnsUsed++;
-  renderCandles();
-  state.transcript.push({ who: "you", text: message }, { who: "agnes", text: reply.reply });
+  renderAttempts();
+  state.transcript.push({ who: "you", text: message }, { who: "them", text: reply.reply });
   if (reply.belief) state.belief = reply.belief;
 
-  thinking.classList.remove("thinking");
-  agnes.setMood(reply.mood);
-  $("moodLabel").textContent = MOOD_LABEL[reply.mood];
+  setMood(reply.mood);
   if (reply.suspicion > state.suspicion + 10) sound.alarm();
   setSuspicion(reply.suspicion);
   setUnderstanding(reply.understanding);
-  await typeInto(thinking, reply.reply);
-
+  await typeOut(pending, reply.reply);
   state.busy = false;
 
-  if (state.suspicion >= 100) return burn(reply.reply);
-  if (state.understanding >= WIN_UNDERSTANDING) return finishCard(true);
-  if (state.turnsUsed >= MAX_TURNS) return finishCard(false);
+  if (state.suspicion >= 100) return endRound(false, true);
+  if (state.understanding >= WIN_UNDERSTANDING) return endRound(true);
+  if (state.turnsUsed >= MAX_TURNS) return endRound(false);
 
   input.disabled = false;
   updateWarn();
   input.focus({ preventScroll: true });
 }
 
-async function finishCard(won: boolean) {
-  const card = CARDS[state.cardIndex];
-  state.results.push({ title: card.title, won, belief: state.belief });
-  const el = $("card");
-  el.classList.add(won ? "won" : "lost");
-  const stamp = $("stamp");
-  stamp.textContent = won ? "Understood" : "Gave up";
-  stamp.hidden = false;
-  $("composer").classList.add("done");
-  $<HTMLTextAreaElement>("input").disabled = true;
+async function endRound(won: boolean, burned = false) {
+  const v = villager();
+  state.results.push({ villager: v, topic: topic(), won, belief: state.belief });
+  $("reply").hidden = true;
+  renderProgress();
+
+  if (burned) {
+    addVerdict(false, "The village has heard enough.");
+    sound.bell();
+    await wait(1800);
+    return finale(false);
+  }
 
   if (won) {
     sound.win();
-    setSuspicion(Math.max(0, state.suspicion - 8));
+    addVerdict(true, state.belief ? `${v.name} now believes ${state.belief}.` : `${v.name} understands.`);
+    setSuspicion(Math.max(0, state.suspicion - 5));
   } else {
     sound.fail();
-    await wait(500);
-    agnes.setMood("suspicious");
-    await typeInto(addLine("agnes"), "*shakes her head* You've talked and talked and I'm none the wiser. That's what a liar sounds like.");
-    setSuspicion(Math.min(100, state.suspicion + 12));
-    if (state.suspicion >= 100) return burn("You've talked and talked and I'm none the wiser. TORCHES!");
+    addVerdict(false, `Suspicion +${FAIL_PENALTY}. ${v.name} will tell the others.`);
+    setMood("suspicious");
+    setSuspicion(Math.min(100, state.suspicion + FAIL_PENALTY));
+    if (state.suspicion >= 100) {
+      sound.bell();
+      await wait(1800);
+      return finale(false);
+    }
   }
 
-  const last = state.cardIndex === CARDS.length - 1;
-  const next = $<HTMLButtonElement>("nextBtn");
-  next.innerHTML = last ? 'See what became of you <span aria-hidden="true">→</span>' : 'Next thing <span aria-hidden="true">→</span>';
-  next.hidden = false;
-  next.focus({ preventScroll: true });
+  const last = state.round === ROUNDS - 1;
+  $("nextBtn").textContent = last ? "Face the village" : `Continue to round ${ROMAN[state.round + 1]}`;
+  $("after").hidden = false;
+  $("nextBtn").focus({ preventScroll: true });
 }
 
-function nextCard() {
-  if (state.cardIndex >= CARDS.length - 1) return survive();
-  loadCard(state.cardIndex + 1);
+function nextRound() {
+  if (state.round >= ROUNDS - 1) return finale(true);
+  state.round++;
+  showIntro();
 }
 
-// ---------- endings ----------
+// ---------- finale ----------
 
-function beliefs(): string[] {
-  const list = state.results.filter((r) => r.belief).map((r) => r.belief);
-  if (state.belief && !list.includes(state.belief)) list.push(state.belief);
-  return list;
-}
-
-function showEnding(kind: "burn" | "dawn", lastWords: string) {
+function finale(survived: boolean) {
   state.over = true;
   const won = state.results.filter((r) => r.won).length;
-  document.body.dataset.ending = kind;
-  $("stage").classList.add("leaving");
-  scene.setEnding(kind);
+  document.body.dataset.ending = survived ? "thanks" : "burned";
+  setBackdrop(survived ? SCENES.wedding : SCENES.burning, survived ? "warm" : "fire");
+  embers.intensity = survived ? 0 : 0.9;
+  if (survived) sound.dawn();
 
-  setTimeout(() => {
-    $("stage").hidden = true;
-    $("suspicionMeter").hidden = true;
-    const end = $("ending");
-    $("endEyebrow").textContent =
-      kind === "burn"
-        ? `Burned at the stake · ${won} of ${CARDS.length} explained`
-        : `You survived 1350 · ${won} of ${CARDS.length} explained`;
-    $("endTitle").innerHTML = kind === "burn" ? "They burned<br /><em>you.</em>" : "You made it<br /><em>to morning.</em>";
-    $("lastWords").innerHTML = `<span class="who">Agnes, ${kind === "burn" ? "holding a torch" : "at sunrise"}</span>${renderSpeech(lastWords)}`;
-    const list = beliefs();
-    $("beliefList").innerHTML = list.length
-      ? list.map((b) => `<li>${renderSpeech(b.charAt(0).toUpperCase() + b.slice(1))}.</li>`).join("")
-      : "<li>Nothing. She only believes you were a witch.</li>";
-    end.hidden = false;
-    end.classList.remove("show");
-    void end.offsetWidth;
-    end.classList.add("show");
-  }, kind === "burn" ? 1600 : 900);
+  $("finKicker").textContent = survived
+    ? `${won} of ${ROUNDS} convinced · You survived 1350`
+    : `${won} of ${ROUNDS} convinced · Burned at the stake`;
+  $("finTitle").innerHTML = survived ? "Little Hambury <em>thanks you.</em>" : "The village <em>has decided.</em>";
+  $("finLede").textContent = survived
+    ? "Word spread. By evening the whole village had gathered, not with torches, but with ale, bread and a great many questions."
+    : "Word spread. By nightfall the whole village had gathered in the square, and every one of them had brought a torch.";
+
+  // The villagers you met stand at the front, then the rest of the village.
+  const met = state.results.map((r) => r.villager);
+  const everyone = [...met, ...CAST.filter((v) => !met.includes(v))];
+  $("assembly").innerHTML = everyone
+    .map(
+      (v, i) => `
+      <figure class="member${met.includes(v) ? " met" : ""}" style="--i:${i}">
+        <div class="frame sm"><img src="${art(v.art.file)}" alt="${escapeHtml(v.name)}" loading="lazy" /><div class="torchlight"></div></div>
+        <figcaption><b>${escapeHtml(v.name)}</b><span>${speech(survived ? v.thanksLine : v.burnLine)}</span></figcaption>
+      </figure>`,
+    )
+    .join("");
+
+  const beliefs = state.results.filter((r) => r.belief);
+  $("beliefs").innerHTML = beliefs.length
+    ? `<h3>What the village now believes</h3><ul>${beliefs
+        .map(
+          (r) =>
+            `<li><b>${escapeHtml(r.topic.title)}</b><span>${escapeHtml(r.belief.charAt(0).toUpperCase() + r.belief.slice(1))}.</span><small>according to ${escapeHtml(r.villager.name)}</small></li>`,
+        )
+        .join("")}</ul>`
+    : "";
+  show("finale");
+  renderProgress();
 }
 
-function burn(line: string) {
-  state.over = true;
-  sound.bell();
-  agnes.setMood("furious");
-  $("moodLabel").textContent = MOOD_LABEL.furious;
-  document.body.classList.add("shake");
-  setTimeout(() => document.body.classList.remove("shake"), 900);
-  showEnding("burn", line);
-}
-
-function survive() {
-  sound.dawn();
+function shareText() {
   const won = state.results.filter((r) => r.won).length;
-  const line =
-    won >= 6
-      ? "*hands you a turnip* You're the strangest soul God ever dropped in a field, but I believe you. Mostly."
-      : won >= 3
-        ? "*squints at the sunrise* I still think you're half mad. But mad isn't witchcraft. Off you go."
-        : "*keeps her hoe raised* I didn't understand a word, but you're too boring to be a witch. Leave.";
-  showEnding("dawn", line);
+  const survived = document.body.dataset.ending === "thanks";
+  const topics = state.results.map((r) => `${r.topic.title.replace(/^The /, "the ")} to ${r.villager.name}`).join(", ");
+  const lead = survived
+    ? `I explained ${topics} in 1350, and the village thanked me.`
+    : `I tried to explain ${topics} in 1350. They burned me as a witch.`;
+  const b = state.results.find((r) => r.belief);
+  return `${lead} (${won}/${ROUNDS})${b ? `\n${b.villager.name} now believes ${b.belief}.` : ""}\n\nDon't Get Burned: ${location.origin}`;
 }
 
-function shareText(): string {
-  const won = state.results.filter((r) => r.won).length;
-  const b = beliefs();
-  const lead =
-    document.body.dataset.ending === "burn"
-      ? `I explained ${won}/${CARDS.length} modern things to a medieval peasant before she burned me as a witch. 🔥`
-      : `I explained ${won}/${CARDS.length} modern things to a medieval peasant and survived 1350. 🌅`;
-  const belief = b.length ? `\nShe now believes ${b[b.length - 1]}.` : "";
-  return `${lead}${belief}\n\nDon't Get Burned → ${location.origin}`;
-}
+// ---------- title & credits ----------
 
-// ---------- flow ----------
+function renderTitle() {
+  $("castGrid").innerHTML = CAST.map(
+    (v, i) => `
+    <div class="cast-card" style="--i:${i}">
+      <div class="frame xs"><img src="${art(v.art.file)}" alt="${escapeHtml(v.name)}, ${escapeHtml(v.role)}" /></div>
+      <span>${escapeHtml(v.name)}</span>
+    </div>`,
+  ).join("");
+  $("creditList").innerHTML = [
+    ...CAST.map((v) => ({ ...v.art, label: v.name })),
+    ...Object.values(SCENES).map((s) => ({ ...s, label: "Scene" })),
+  ]
+    .map(
+      (a) =>
+        `<li><span class="who">${escapeHtml(a.label)}</span><a href="${a.source}" target="_blank" rel="noopener"><i>${escapeHtml(a.title)}</i>, ${escapeHtml(a.artist)}, ${escapeHtml(a.date)}</a></li>`,
+    )
+    .join("");
+  setBackdrop(SCENES.harvesters);
+  renderProgress();
+}
 
 function start() {
   sound.start();
-  state.cardIndex = 0;
-  state.results = [];
-  state.over = false;
-  state.busy = false;
-  delete document.body.dataset.ending;
-  scene.setEnding(null);
-  setSuspicion(0);
-  $("moodLabel").textContent = MOOD_LABEL.curious;
-  $("titleScreen").classList.add("leaving");
-  $("ending").hidden = true;
-  setTimeout(() => {
-    $("titleScreen").hidden = true;
-    const stage = $("stage");
-    stage.classList.remove("leaving");
-    stage.hidden = false;
-    $("suspicionMeter").hidden = false;
-    loadCard(0);
-  }, 450);
+  newRun();
+  showIntro();
 }
 
+// ---------- wiring ----------
+
+renderTitle();
 $("startBtn").addEventListener("click", start);
 $("againBtn").addEventListener("click", start);
-$("composer").addEventListener("submit", send);
-$("nextBtn").addEventListener("click", nextCard);
+$("introBtn").addEventListener("click", startRound);
+$("reply").addEventListener("submit", send);
+$("nextBtn").addEventListener("click", nextRound);
 const input = $<HTMLTextAreaElement>("input");
 input.addEventListener("input", updateWarn);
 input.addEventListener("keydown", (e) => {
@@ -416,11 +510,12 @@ input.addEventListener("keydown", (e) => {
 $("shareBtn").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(shareText());
-    toast("Copied. Go spread the word, witch.");
+    toast("Copied to your clipboard.");
   } catch {
-    toast("Couldn't copy. Your browser said no.");
+    toast("Your browser wouldn't let me copy that.");
   }
 });
+$("creditsBtn").addEventListener("click", () => $<HTMLDialogElement>("credits").showModal());
 
 const muteBtn = $("muteBtn");
 const savedMute = (() => {
@@ -437,7 +532,7 @@ muteBtn.addEventListener("click", () => {
   const m = !sound.muted;
   sound.setMuted(m);
   muteBtn.classList.toggle("muted", m);
-  muteBtn.setAttribute("aria-label", m ? "Sound on" : "Sound off");
+  muteBtn.setAttribute("aria-label", m ? "Turn sound on" : "Turn sound off");
   try {
     localStorage.setItem("dgb-muted", m ? "1" : "0");
   } catch {

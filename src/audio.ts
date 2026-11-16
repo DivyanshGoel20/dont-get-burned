@@ -83,11 +83,6 @@ export class Sound {
     o.stop(t + dur + 0.05);
   }
 
-  /** Short pluck while text types out. */
-  blip() {
-    this.tone(520 + Math.random() * 120, 0, 0.06, 0.025, "triangle");
-  }
-
   win() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, i * 0.09, 1.4, 0.12));
   }
