@@ -30,6 +30,9 @@ function talkApi(): Plugin {
 
 export default defineConfig(({ mode }) => {
   // Server-only settings. Without a VITE_ prefix these never reach the browser bundle.
+  // loadEnv prefers values already in process.env, so clear ours first: otherwise an
+  // edited key in .env would be ignored until a full restart.
+  for (const k of Object.keys(process.env)) if (k.startsWith("LLM_")) delete process.env[k];
   const env = loadEnv(mode, process.cwd(), "LLM_");
   for (const [k, v] of Object.entries(env)) if (v) process.env[k] = v;
   return { plugins: [talkApi()] };
